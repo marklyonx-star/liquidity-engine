@@ -140,7 +140,7 @@ for acc in filtered:
 st.divider()
 st.markdown("### ✨ Rewards Points")
 
-rewards = db.get_rewards_points()
+rewards = db.get_all_rewards()
 total_value = sum(r['current_balance'] * r['point_value'] for r in rewards)
 st.caption(f"Total Value: ${total_value:,.0f}")
 
