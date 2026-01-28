@@ -1,6 +1,7 @@
 """
 Liquidity Engine - Partner Draws
 Track personal draws between Mark & Katie from the business
+Mobile-friendly with full transaction history
 """
 import streamlit as st
 import pandas as pd
@@ -22,227 +23,197 @@ st.set_page_config(
 
 require_auth()
 
-st.title("👫 Partner Draws")
-st.caption("Track personal draws from the business between Mark & Katie")
+# Custom CSS for compact mobile display
+st.markdown("""
+<style>
+    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
+    .block-container { padding: 1rem !important; }
+    h1 { font-size: 1.4rem !important; }
+    h2 { font-size: 1.1rem !important; }
+    .stDataFrame { font-size: 0.75rem !important; }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("## 👫 Partner Draws")
 
 # Get totals
 totals = db.get_partner_totals()
-mark_total = totals.get('Mark', 0)
-katie_total = totals.get('Katie', 0)
-difference = mark_total - katie_total
+diff = totals['Mark'] - totals['Katie']
 
-# Summary metrics
-st.divider()
+# ============ SUMMARY METRICS ============
 col1, col2, col3 = st.columns(3)
-
 with col1:
-    st.metric(
-        "Mark's Total", 
-        f"${mark_total:,.2f}", 
-        f"{totals.get('Mark_count', 0)} entries"
-    )
-
+    st.metric("Mark", f"${totals['Mark']:,.0f}", f"{totals['Mark_count']} items")
 with col2:
-    st.metric(
-        "Katie's Total", 
-        f"${katie_total:,.2f}",
-        f"{totals.get('Katie_count', 0)} entries"
-    )
-
+    st.metric("Katie", f"${totals['Katie']:,.0f}", f"{totals['Katie_count']} items")
 with col3:
-    if difference > 0:
-        st.metric("Difference", f"${abs(difference):,.2f}", "Mark ahead", delta_color="inverse")
-    elif difference < 0:
-        st.metric("Difference", f"${abs(difference):,.2f}", "Katie ahead", delta_color="inverse")
+    if diff > 0:
+        st.metric("Balance", f"Mark +${diff:,.0f}")
+    elif diff < 0:
+        st.metric("Balance", f"Katie +${abs(diff):,.0f}")
     else:
-        st.metric("Difference", "$0.00", "Even")
+        st.metric("Balance", "Even")
 
 st.divider()
 
-# Tabs
-tab1, tab2, tab3 = st.tabs(["📋 All Draws", "➕ Add Draw", "📥 Import from Excel"])
-
-# ============ TAB 1: View All Draws ============
-with tab1:
-    # Filters
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        filter_partner = st.selectbox("Filter by Partner", ["All", "Mark", "Katie"])
-    with col2:
-        sort_order = st.selectbox("Sort", ["Newest First", "Oldest First", "Amount (High)", "Amount (Low)"])
-    
-    # Get draws
-    partner_filter = None if filter_partner == "All" else filter_partner
-    draws = db.get_partner_draws(partner=partner_filter)
-    
-    if draws:
-        # Side by side view
-        st.markdown("### Draw History")
-        
-        mark_draws = [d for d in draws if d['partner'] == 'Mark'] if filter_partner != "Katie" else []
-        katie_draws = [d for d in draws if d['partner'] == 'Katie'] if filter_partner != "Mark" else []
-        
-        col1, col2 = st.columns(2)
-        
-        def format_amount(x):
-            if x < 0:
-                return f"(${abs(x):,.2f})"  # Credits/returns in parentheses
-            return f"${x:,.2f}"
-        
-        with col1:
-            st.markdown("#### 👨 Mark")
-            if mark_draws:
-                mark_df = pd.DataFrame([{
-                    'Date': d['draw_date'],
-                    'Description': d['description'],
-                    'Amount': d['amount'],
-                    'Notes': d['notes'] or ''
-                } for d in mark_draws])
-                
-                mark_df['Amount'] = mark_df['Amount'].apply(format_amount)
-                st.dataframe(mark_df, use_container_width=True, hide_index=True)
-            else:
-                st.info("No draws for Mark")
-        
-        with col2:
-            st.markdown("#### 👩 Katie")
-            if katie_draws:
-                katie_df = pd.DataFrame([{
-                    'Date': d['draw_date'],
-                    'Description': d['description'],
-                    'Amount': d['amount'],
-                    'Notes': d['notes'] or ''
-                } for d in katie_draws])
-                
-                katie_df['Amount'] = katie_df['Amount'].apply(format_amount)
-                st.dataframe(katie_df, use_container_width=True, hide_index=True)
-            else:
-                st.info("No draws for Katie")
-        
-        # Full list with edit/delete options
-        st.divider()
-        st.markdown("### Manage Entries")
-        
-        for draw in draws[:50]:  # Limit display
-            with st.expander(f"{draw['partner']} | {draw['draw_date']} | {draw['description']} | ${draw['amount']:,.2f}"):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f"**Partner:** {draw['partner']}")
-                    st.markdown(f"**Date:** {draw['draw_date']}")
-                    st.markdown(f"**Description:** {draw['description']}")
-                    st.markdown(f"**Amount:** ${draw['amount']:,.2f}")
-                    if draw['notes']:
-                        st.markdown(f"**Notes:** {draw['notes']}")
-                with col3:
-                    if st.button("🗑️ Delete", key=f"del_{draw['id']}"):
-                        db.delete_partner_draw(draw['id'])
-                        st.success("Deleted!")
-                        st.rerun()
-    else:
-        st.info("No draws recorded yet. Add draws or import from Excel.")
-
-# ============ TAB 2: Add Draw ============
-with tab2:
-    st.markdown("### Add New Draw Entry")
-    
-    with st.form("add_draw_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
+# ============ ADD NEW DRAW ============
+with st.expander("➕ Add New Draw", expanded=False):
+    with st.form("new_draw"):
+        c1, c2 = st.columns(2)
+        with c1:
             partner = st.selectbox("Partner", ["Mark", "Katie"])
             draw_date = st.date_input("Date", value=date.today())
-            description = st.text_input("Description", placeholder="e.g., Nordstrom, Dinner at Nobu")
+        with c2:
+            amount = st.number_input("Amount", min_value=-10000.0, max_value=50000.0, value=0.0, step=0.01)
+            description = st.text_input("Description")
         
-        with col2:
-            amount = st.number_input("Amount", value=0.0, step=10.0, 
-                                      help="Positive = expense, Negative = return/credit")
-            notes = st.text_input("Notes (optional)", placeholder="e.g., Birthday gift, Return")
+        category = st.selectbox("Category", ["Shopping", "Dining", "Travel", "Entertainment", "Health", "Gifts", "Other"])
+        notes = st.text_input("Notes (optional)")
         
-        is_return = st.checkbox("This is a return/credit (will make amount negative)")
-        
-        submitted = st.form_submit_button("Add Draw", type="primary")
-        
-        if submitted:
-            if not description:
-                st.error("Please enter a description")
-            else:
-                final_amount = -abs(amount) if is_return else abs(amount)
-                db.add_partner_draw(
-                    partner=partner,
-                    draw_date=draw_date.isoformat(),
-                    description=description,
-                    amount=final_amount,
-                    notes=notes if notes else None
-                )
-                st.success(f"Added ${abs(final_amount):,.2f} {'credit' if is_return else 'draw'} for {partner}!")
+        if st.form_submit_button("Add Draw", use_container_width=True):
+            if description and amount != 0:
+                db.add_partner_draw(partner, draw_date.isoformat(), description, amount, f"{category}: {notes}" if notes else category)
+                st.success(f"Added ${amount:,.2f} for {partner}")
                 st.rerun()
+            else:
+                st.error("Enter description and amount")
 
-# ============ TAB 3: Import from Excel ============
-with tab3:
-    st.markdown("### Import from Excel")
-    st.caption("Import draws from your MK_Private.xlsx file")
+st.divider()
+
+# ============ TRANSACTION FILTERS ============
+col1, col2, col3 = st.columns(3)
+with col1:
+    filter_partner = st.selectbox("Filter", ["All", "Mark", "Katie"], key="partner_filter")
+with col2:
+    sort_order = st.selectbox("Sort", ["Newest First", "Oldest First", "Highest Amount", "Lowest Amount"], key="sort")
+with col3:
+    search = st.text_input("Search", placeholder="Description...", key="search")
+
+# ============ TRANSACTION LIST ============
+# Get all draws
+with db.get_connection() as conn:
+    cursor = conn.cursor()
     
-    st.warning("⚠️ Importing will **replace** all existing draw entries!")
+    query = "SELECT * FROM partner_draws WHERE 1=1"
+    params = []
     
-    uploaded_file = st.file_uploader("Upload MK_Private.xlsx", type=['xlsx'])
+    if filter_partner != "All":
+        query += " AND partner = ?"
+        params.append(filter_partner)
+    
+    if search:
+        query += " AND description LIKE ?"
+        params.append(f"%{search}%")
+    
+    # Sort
+    if sort_order == "Newest First":
+        query += " ORDER BY draw_date DESC, id DESC"
+    elif sort_order == "Oldest First":
+        query += " ORDER BY draw_date ASC, id ASC"
+    elif sort_order == "Highest Amount":
+        query += " ORDER BY amount DESC"
+    else:
+        query += " ORDER BY amount ASC"
+    
+    cursor.execute(query, params)
+    draws = cursor.fetchall()
+
+# Display count
+st.caption(f"Showing {len(draws)} transactions")
+
+# Create tabs for Mark and Katie views
+if filter_partner == "All":
+    tab1, tab2 = st.tabs(["📋 All Transactions", "📊 Side by Side"])
+    
+    with tab1:
+        # Display as compact list
+        for draw in draws:
+            emoji = "🔵" if draw['partner'] == 'Mark' else "🔴"
+            amount = draw['amount']
+            amt_str = f"${amount:,.2f}" if amount >= 0 else f"-${abs(amount):,.2f}"
+            color = "" if amount >= 0 else "~~"
+            
+            c1, c2, c3 = st.columns([1, 4, 2])
+            with c1:
+                st.markdown(f"{emoji}")
+            with c2:
+                st.markdown(f"**{draw['description'][:30]}**")
+                st.caption(f"{draw['draw_date']}")
+            with c3:
+                st.markdown(f"**{amt_str}**")
+    
+    with tab2:
+        # Side by side comparison
+        mark_draws = [d for d in draws if d['partner'] == 'Mark']
+        katie_draws = [d for d in draws if d['partner'] == 'Katie']
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("### Mark")
+            for d in mark_draws[:50]:  # Show first 50
+                amt = d['amount']
+                st.markdown(f"${amt:,.0f} - {d['description'][:20]}")
+            if len(mark_draws) > 50:
+                st.caption(f"+ {len(mark_draws) - 50} more...")
+        
+        with c2:
+            st.markdown("### Katie")
+            for d in katie_draws[:50]:
+                amt = d['amount']
+                st.markdown(f"${amt:,.0f} - {d['description'][:20]}")
+            if len(katie_draws) > 50:
+                st.caption(f"+ {len(katie_draws) - 50} more...")
+
+else:
+    # Single partner view - show all transactions
+    st.markdown(f"### {filter_partner}'s Draws")
+    
+    for draw in draws:
+        amount = draw['amount']
+        amt_str = f"${amount:,.2f}" if amount >= 0 else f"-${abs(amount):,.2f}"
+        
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.markdown(f"**{draw['description']}**")
+            st.caption(f"{draw['draw_date']} {draw['notes'] or ''}")
+        with c2:
+            if amount >= 0:
+                st.markdown(f"**{amt_str}**")
+            else:
+                st.markdown(f"*{amt_str}* (return)")
+
+# ============ IMPORT SECTION ============
+st.divider()
+with st.expander("📤 Import from Excel", expanded=False):
+    st.markdown("""
+    Upload an Excel file with partner draws.
+    Expected format: Katie in columns A-D, Mark in columns F-H
+    """)
+    
+    uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx', 'xls'])
     
     if uploaded_file:
-        # Save uploaded file temporarily
-        temp_path = Path("/tmp/mk_private_upload.xlsx")
-        temp_path.write_bytes(uploaded_file.getvalue())
-        
-        # Preview the file
-        try:
-            df = pd.read_excel(temp_path, sheet_name='Draw 2025', header=None)
+        if st.button("Import Draws", type="primary"):
+            # Save temp file
+            temp_path = Path("/tmp/draws_import.xlsx")
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-            st.markdown("#### Preview")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Katie's Entries (first 10)**")
-                katie_preview = df.iloc[1:11, [0, 1, 2, 3]].copy()
-                katie_preview.columns = ['Date', 'Description', 'Amount', 'Notes']
-                st.dataframe(katie_preview, hide_index=True)
-            
-            with col2:
-                st.markdown("**Mark's Entries (first 10)**")
-                mark_preview = df.iloc[1:11, [5, 6, 7]].copy()
-                mark_preview.columns = ['Date', 'Description', 'Amount']
-                st.dataframe(mark_preview, hide_index=True)
-            
-            # Count entries
-            katie_count = df.iloc[1:, 2].notna().sum()
-            mark_count = df.iloc[1:, 7].notna().sum()
-            
-            st.info(f"Found approximately **{katie_count}** entries for Katie and **{mark_count}** entries for Mark")
-            
-            if st.button("🚀 Import All Draws", type="primary"):
-                try:
-                    results = db.import_partner_draws_from_excel(str(temp_path))
-                    st.success(f"✅ Imported {results['Katie']} entries for Katie and {results['Mark']} entries for Mark!")
-                    st.balloons()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Import failed: {str(e)}")
-        
-        except Exception as e:
-            st.error(f"Could not read file: {str(e)}")
+            results = db.import_partner_draws_from_excel(str(temp_path))
+            st.success(f"Imported: Mark ({results['Mark']}), Katie ({results['Katie']})")
+            st.rerun()
 
-# Sidebar summary
-with st.sidebar:
-    st.markdown("### 💰 Draw Summary")
-    st.markdown(f"**Mark:** ${mark_total:,.2f}")
-    st.markdown(f"**Katie:** ${katie_total:,.2f}")
-    
-    st.divider()
-    
-    if difference > 0:
-        st.markdown(f"Mark has drawn **${abs(difference):,.2f}** more")
-    elif difference < 0:
-        st.markdown(f"Katie has drawn **${abs(difference):,.2f}** more")
-    else:
-        st.markdown("Draws are **even**")
-    
-    st.divider()
-    
-    st.caption("Negative amounts = returns/credits")
+# ============ EXPORT SECTION ============
+with st.expander("📥 Export Data", expanded=False):
+    if st.button("Download as CSV"):
+        with db.get_connection() as conn:
+            df = pd.read_sql_query("SELECT partner, draw_date, description, amount, notes FROM partner_draws ORDER BY draw_date DESC", conn)
+        
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name="partner_draws.csv",
+            mime="text/csv"
+        )

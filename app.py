@@ -58,120 +58,95 @@ if not check_password():
 
 # ============ MAIN APP (only shows after password) ============
 
-# Custom CSS
+# Custom CSS for mobile-friendly display
 st.markdown("""
 <style>
-    /* Main metrics styling */
-    [data-testid="metric-container"] {
-        background-color: #1e1e1e;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #333;
-    }
+    /* Compact display */
+    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
+    .block-container { padding: 1rem !important; }
+    h1 { font-size: 1.4rem !important; }
+    h2 { font-size: 1.2rem !important; }
+    h3 { font-size: 1rem !important; }
     
     /* Sidebar styling */
     [data-testid="stSidebar"] {
         background-color: #0e1117;
     }
-    
-    /* Table styling */
-    .dataframe {
-        font-size: 14px;
-    }
-    
-    /* Debt amount styling */
-    .debt-critical {
-        color: #ff4b4b;
-        font-weight: bold;
-    }
-    
-    .debt-warning {
-        color: #ffa500;
-    }
-    
-    .debt-ok {
-        color: #00cc00;
+    [data-testid="stSidebar"] [data-testid="stMetricValue"] { 
+        font-size: 1rem !important; 
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# Sidebar - compact
 with st.sidebar:
-    st.title("💰 Liquidity Engine")
+    st.markdown("### 💰 Liquidity Engine")
     st.caption(f"v{config.APP_VERSION}")
     
     st.divider()
     
-    # Quick Stats
     total_debt = db.get_total_debt()
     monthly_obligations = db.get_monthly_obligations()
     rewards_value = db.get_total_rewards_value()
     
-    st.metric("Total Debt", f"${total_debt:,.2f}")
-    st.metric("Payments Due", f"${monthly_obligations:,.2f}")
-    st.metric("Rewards Value", f"${rewards_value:,.2f}")
-    
-    st.divider()
-    
-    st.caption("Navigate using the pages above ☝️")
+    st.metric("Debt", f"${total_debt/1000:.0f}K")
+    st.metric("Due", f"${monthly_obligations/1000:.0f}K")
+    st.metric("Rewards", f"${rewards_value/1000:.0f}K")
 
-# Main content
-st.title("Welcome to Liquidity Engine")
-st.markdown("### Your Personal & Business Finance Command Center")
+# Main content - compact
+st.markdown("## 💰 Liquidity Engine")
+
+# Quick metrics row
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Total Debt", f"${total_debt/1000:.0f}K")
+with col2:
+    st.metric("Payments Due", f"${monthly_obligations/1000:.0f}K")
+with col3:
+    st.metric("Rewards", f"${rewards_value/1000:.0f}K")
 
 st.divider()
 
-# Quick overview cards
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("#### 🔴 Total Debt")
-    st.markdown(f"## ${total_debt:,.2f}")
-    
-    # Debt breakdown
+# Debt breakdown - collapsible
+with st.expander("📊 Debt Breakdown", expanded=True):
     debt_by_type = db.get_debt_by_type()
     for row in debt_by_type:
         account_type = row['account_type'].replace('_', ' ').title()
-        st.caption(f"{account_type}: ${row['total']:,.2f} ({row['count']} accounts)")
+        st.markdown(f"**{account_type}:** ${row['total']:,.0f} ({row['count']} accounts)")
 
-with col2:
-    st.markdown("#### 📅 Payments Due")
-    st.markdown(f"## ${monthly_obligations:,.2f}")
-    
-    # Upcoming payments
-    upcoming = db.get_upcoming_payments(days=7)
+# Upcoming payments - collapsible
+with st.expander("📅 Upcoming Payments", expanded=False):
+    upcoming = db.get_upcoming_payments(days=30)
     if upcoming:
-        st.caption("Due this month:")
-        for payment in upcoming[:5]:
+        for payment in upcoming[:8]:
             if payment['minimum_payment'] > 0:
-                st.caption(f"• {payment['name']}: ${payment['minimum_payment']:,.2f} (Day {payment['due_day']})")
+                st.markdown(f"• **{payment['name'][:20]}**: ${payment['minimum_payment']:,.0f} (Day {payment['due_day']})")
+    else:
+        st.caption("No upcoming payments")
 
-with col3:
-    st.markdown("#### ✨ Rewards Assets")
-    st.markdown(f"## ${rewards_value:,.2f}")
-    
+# Rewards - collapsible
+with st.expander("✨ Rewards Points", expanded=False):
     rewards = db.get_all_rewards()
-    for r in rewards[:4]:
-        st.caption(f"{r['program_name']}: {r['current_balance']:,} pts")
+    for r in rewards:
+        value = r['current_balance'] * r['point_value']
+        st.markdown(f"**{r['program_name'][:20]}**: {r['current_balance']:,} pts (${value:,.0f})")
 
 st.divider()
 
-# Getting Started Guide
-st.markdown("### 🚀 Getting Started")
+# Quick navigation
+st.markdown("### Quick Navigation")
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("📊 Dashboard", use_container_width=True):
+        st.switch_page("pages/2_Dashboard.py")
+    if st.button("💳 Accounts", use_container_width=True):
+        st.switch_page("pages/1_Accounts.py")
+with c2:
+    if st.button("👫 Partner Draws", use_container_width=True):
+        st.switch_page("pages/8_Partner_Draws.py")
+    if st.button("⚙️ Settings", use_container_width=True):
+        st.switch_page("pages/7_Settings.py")
 
-st.markdown("""
-**Phase 1 is complete!** Your accounts are loaded and ready. Here's what you can do:
-
-1. **📊 Dashboard** - View your financial pulse (coming in Phase 4)
-2. **💳 Accounts** - Manage and update your account balances  
-3. **📥 Transactions** - Import and categorize transactions (coming in Phase 2)
-4. **🏷️ Categories** - Customize your three buckets (coming in Phase 3)
-5. **🔮 Forecaster** - Predict cash crunches (coming in Phase 6)
-6. **🤖 AI Query** - Ask questions in plain English (coming in Phase 5)
-
-**Next step:** Go to the **Accounts** page to review your loaded accounts and update any balances.
-""")
-
-# Version info
 st.divider()
-st.caption(f"Liquidity Engine v{config.APP_VERSION} | Built for Mark Lyon | Data stored locally in SQLite")
+st.caption(f"v{config.APP_VERSION} | Data stored locally")

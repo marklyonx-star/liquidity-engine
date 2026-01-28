@@ -188,20 +188,20 @@ def seed_initial_data():
         if cursor.fetchone()[0] > 0:
             return  # Already seeded
         
-        # Insert accounts
+        # Insert accounts (name, institution, type, last4, balance, credit_limit, payment, due_day, rate, payoff, business, active, notes)
         accounts = [
             # Credit Cards
-            ("Chase Ink Reserve", "Chase", "credit_card", "0678", 141398.50, None, 122291.79, 17, None, None, 1, 1, "CRITICAL: Huge payment due"),
-            ("Capital One Venture X", "Capital One", "credit_card", "8615", 17538.56, None, 17538.56, 20, None, None, 1, 1, "Pay Full Balance"),
-            ("Amex Gold (Ad Account)", "Amex", "credit_card", "51008", 6560.22, None, 4355.21, 2, None, None, 1, 1, "Primary ad spend card"),
-            ("Amex Gold (Marketing)", "Amex", "credit_card", "51001", 5465.09, None, 1282.11, 18, None, None, 1, 1, "Marketing Card"),
-            ("Amex Amazon", "Amex", "credit_card", "61002", 1111.63, None, 35.00, 15, None, None, 1, 1, "Amazon Prime"),
-            ("Amex Plum", "Amex", "credit_card", "31003", 235.60, None, 0, None, None, None, 1, 1, "Flexible Pay"),
-            ("Chase Sapphire", "Chase", "credit_card", "5125", 887.07, None, 0, 4, None, None, 0, 1, "Personal"),
-            ("Chase Biz Ink", "Chase", "credit_card", "8187", 0, None, 0, 9, None, None, 1, 1, "Zero Balance"),
-            ("Capital One Savor", "Capital One", "credit_card", "5920", 1929.86, None, 1929.86, None, None, None, 0, 1, "Personal card"),
+            ("Chase Ink Reserve", "Chase", "credit_card", "0678", 141398.50, 150000, 122291.79, 17, None, None, 1, 1, "CRITICAL: Huge payment due"),
+            ("Capital One Venture X", "Capital One", "credit_card", "8615", 17538.56, 30000, 17538.56, 20, None, None, 1, 1, "Pay Full Balance"),
+            ("Amex Gold (Ad Account)", "Amex", "credit_card", "51008", 6560.22, 25000, 4355.21, 2, None, None, 1, 1, "Primary ad spend card"),
+            ("Amex Gold (Marketing)", "Amex", "credit_card", "51001", 5465.09, 25000, 1282.11, 18, None, None, 1, 1, "Marketing Card"),
+            ("Amex Amazon", "Amex", "credit_card", "61002", 1111.63, 10000, 35.00, 15, None, None, 1, 1, "Amazon Prime"),
+            ("Amex Plum", "Amex", "credit_card", "31003", 235.60, 50000, 0, None, None, None, 1, 1, "Flexible Pay"),
+            ("Chase Sapphire", "Chase", "credit_card", "5125", 887.07, 15000, 0, 4, None, None, 0, 1, "Personal"),
+            ("Chase Biz Ink", "Chase", "credit_card", "8187", 0, 25000, 0, 9, None, None, 1, 1, "Zero Balance"),
+            ("Capital One Savor", "Capital One", "credit_card", "5920", 1929.86, 10000, 1929.86, None, None, None, 0, 1, "Personal card"),
             
-            # Loans
+            # Loans (no credit limit)
             ("Tax Debt (Katie)", "IRS", "tax_debt", None, 40377.78, None, 1230.00, 15, None, None, 1, 1, "2020/2021 Taxes"),
             ("Land Rover Auto Loan", "Land Rover Financial", "auto_loan", None, 63940.87, None, 1596.07, 27, None, "2029-07-27", 0, 1, "Loan Ends July 2029"),
             ("Best Egg Personal Loan", "Best Egg", "personal_loan", "1753", 32545.15, None, 1283.58, 7, None, None, 0, 1, "Autopay ON"),
@@ -209,7 +209,7 @@ def seed_initial_data():
             
             # Private Loans
             ("Sandra Lopez Loan", "Sandra Lopez", "private_loan", None, 117000.00, None, 3000.00, 1, 0, None, 0, 1, "No interest - straight paydown"),
-            ("John Lyon Card", "Chase (for John Lyon)", "credit_card", None, 19600.00, None, 1400.00, 22, None, "2027-03-21", 0, 1, "Paying on behalf of John Lyon"),
+            ("John Lyon Card", "Chase (for John Lyon)", "credit_card", None, 19600.00, 25000, 1400.00, 22, None, "2027-03-21", 0, 1, "Paying on behalf of John Lyon"),
             ("Martin Toha", "Martin Toha", "private_loan", None, 30000.00, None, 0, None, None, None, 0, 1, "No payment plan yet - track balance only"),
         ]
         
@@ -420,7 +420,7 @@ def get_all_rewards():
         return cursor.fetchall()
 
 def update_rewards_balance(program_name, new_balance):
-    """Update a rewards program balance."""
+    """Update a rewards program balance by name."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -428,6 +428,17 @@ def update_rewards_balance(program_name, new_balance):
             SET current_balance = ?, last_updated = ?
             WHERE program_name = ?
         """, (new_balance, date.today().isoformat(), program_name))
+        conn.commit()
+
+def update_rewards_balance_by_id(reward_id, new_balance):
+    """Update a rewards program balance by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE rewards_points 
+            SET current_balance = ?, last_updated = ?
+            WHERE id = ?
+        """, (new_balance, date.today().isoformat(), reward_id))
         conn.commit()
 
 def get_total_rewards_value():
