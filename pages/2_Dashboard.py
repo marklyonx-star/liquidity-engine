@@ -167,7 +167,7 @@ with st.expander(f"👫 Partner Draws: Mark ${draw_totals['Mark']:,.0f} | Katie 
     st.plotly_chart(fig, use_container_width=True)
 
 # ============ REWARDS POINTS (compact) ============
-rewards = db.get_rewards_points()
+rewards = db.get_all_rewards()
 total_value = sum(r['current_balance'] * r['point_value'] for r in rewards)
 
 with st.expander(f"✨ Rewards: ${total_value:,.0f} value", expanded=False):
